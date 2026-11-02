@@ -132,9 +132,20 @@ module Ameba::Rule::Metrics
         true
       end
 
+      # A heredoc with `#{}` is a `StringLiteral` wrapped in a
+      # `StringInterpolation`, and both carry the same span. Return false so the
+      # wrapper's children are not folded a second time.
       def visit(node : Crystal::StringInterpolation)
         fold(node) if @kinds.includes?("heredoc")
-        true
+        !(@kinds.includes?("heredoc") && heredoc?(node))
+      end
+
+      # Only skip children when the wrapper really spans multiple lines, so
+      # a single-line `"a#{b}"` keeps being visited normally.
+      private def heredoc?(node : Crystal::StringInterpolation) : Bool
+        loc = node.location
+        end_loc = node.end_location
+        !!(loc && end_loc && end_loc.line_number > loc.line_number)
       end
 
       def visit(node : Crystal::ASTNode)

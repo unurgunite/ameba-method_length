@@ -327,7 +327,7 @@ module Ameba::Rule::Metrics
         rule.count_as_one = %w[heredoc]
 
         # 9 physical lines; the 5-line heredoc folds to 1, so 5.
-        expect_issue rule, <<-CRYSTAL
+        expect_issue rule, <<-'CRYSTAL'
           def hello(name)
             # ^^^^^ error: Method is too long [5/0 lines]
             a = 1
