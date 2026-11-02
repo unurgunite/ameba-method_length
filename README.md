@@ -118,14 +118,19 @@ def hello        # 1
 end              # 5
 ```
 
-## Running the specs
+## Development
 
 ```bash
 shards install
 crystal spec
 crystal tool format --check src spec bin
-crystal run bin/ameba.cr --
+crystal run bin/ameba.cr --                                  # lint
+crystal run lib/catalyst/src/catalyst.cr -- --ci src bin      # performance analysis
 ```
+
+`ameba` and `catalyst` are development dependencies: they are not pulled in by consumers of this shard.
+Catalyst reports no binary target, so its entrypoint is run straight from `lib/`. `--ci` makes it exit non-zero on
+any finding.
 
 ## Integration test
 

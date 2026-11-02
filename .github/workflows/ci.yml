@@ -48,8 +48,14 @@ jobs:
       - name: Check formatting
         run: crystal tool format --check src spec bin
 
-      - name: Lint
+      # Code cleanliness gates. Both must stay green for the PR to land.
+      - name: Lint (ameba)
         run: crystal run bin/ameba.cr --
+
+      # Catalyst ships no binary target, so its entrypoint is run from the
+      # installed shard. `--ci` exits non-zero on any finding.
+      - name: Performance analysis (catalyst)
+        run: crystal run lib/catalyst/src/catalyst.cr -- --ci src spec bin
 
       - name: Test
         run: crystal spec
