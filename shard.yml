@@ -1,0 +1,17 @@
+name: ameba-method_length
+version: 0.1.0
+
+authors:
+  - unurgunite
+
+crystal: ">= 1.19.0"
+
+license: MIT
+
+description: |
+  Ameba rule that reports methods longer than a configurable number of lines.
+
+development_dependencies:
+  ameba:
+    github: crystal-ameba/ameba
+    version: "1.7.0"

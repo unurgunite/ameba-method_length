@@ -1,0 +1,19 @@
+/bin/ameba
+/bin/ameba.exe
+/lib/
+/docs/
+/tmp/
+
+# Crystal
+*.dwarf
+.*.swp
+.crystal
+
+# Editor
+.idea/
+.vscode/
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db
