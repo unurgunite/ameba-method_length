@@ -1,0 +1,6 @@
+Globs:
+  - "src/**/*.cr"
+
+Metrics/MethodLength:
+  Enabled: true
+  MaxLines: 5

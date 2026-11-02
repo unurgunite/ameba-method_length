@@ -1,0 +1,5 @@
+/lib/
+/bin/ameba
+/bin/ameba.exe
+/shard.lock
+*.dwarf
