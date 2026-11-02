@@ -74,13 +74,27 @@ Without this wiring the rule is not in the binary and Ameba will not see it.
 Metrics/MethodLength:
   Enabled: true
   MaxLines: 15
+  CountAsOne:
+    - array
+    - hash
+    - heredoc
+  ExcludeLimit: false
+  IgnoreComments: false
+  AllowedMethods:
+    - initialize
 ```
 
-| Property   | Default | Meaning                                      |
-|------------|---------|----------------------------------------------|
-| `MaxLines` | `15`    | Maximum number of lines a method may occupy. |
-| `Enabled`  | `true`  | Toggle the rule.                             |
-| `Excluded` | —       | Standard Ameba `Excluded` globs.             |
+| Property         | Default | Meaning                                                                 |
+|------------------|---------|-------------------------------------------------------------------------|
+| `MaxLines`       | `15`    | Maximum number of lines a method may occupy.                            |
+| `CountAsOne`     | `[]`    | Multi-line literals folded into one counted line: `array`, `hash`, `heredoc`. |
+| `ExcludeLimit`   | `false` | Excludes the `def` line itself from the count.                          |
+| `IgnoreComments` | `false` | Comment-only lines are not counted.                                     |
+| `AllowedMethods` | `[]`    | Method names exempt from the rule, e.g. a long `initialize`.            |
+| `Enabled`        | `true`  | Toggle the rule.                                                        |
+| `Excluded`       | —       | Standard Ameba `Excluded` globs.                                        |
+
+An unknown `CountAsOne` value aborts config loading with an `ArgumentError` rather than silently counting wrong.
 
 ## Line counting
 
@@ -93,17 +107,30 @@ def hello    # 1
 end          # 4  → reported as [4/3 lines] when MaxLines: 3
 ```
 
-Multi-line literals and heredocs count every physical source line; there is no `CountAsOne` equivalent yet.
+Multi-line literals and heredocs count every physical source line unless listed in `CountAsOne`.
 `abstract def` and other bodyless declarations have no end location and are never reported.
 
-## Running the specs
+```crystal
+def hello        # 1
+  a = [          # 2 → 2 with CountAsOne: [array]
+    1,           # 3 → 2
+  ]              # 4 → 2
+end              # 5
+```
+
+## Development
 
 ```bash
 shards install
 crystal spec
 crystal tool format --check src spec bin
-crystal run bin/ameba.cr --
+crystal run bin/ameba.cr --                                  # lint
+crystal run lib/catalyst/src/catalyst.cr -- --ci src bin      # performance analysis
 ```
+
+`ameba` and `catalyst` are development dependencies: they are not pulled in by consumers of this shard.
+Catalyst reports no binary target, so its entrypoint is run straight from `lib/`. `--ci` makes it exit non-zero on
+any finding.
 
 ## Integration test
 

@@ -54,5 +54,7 @@ output="$(./bin/ameba --no-color --only Metrics/MethodLength src 2>&1 || true)"
 assert_contains "$output" "src/bad.cr:" "over-limit method is reported"
 assert_contains "$output" "Method is too long [7/5 lines]" "issue message uses configured MaxLines"
 assert_not_contains "$output" "src/ok.cr:" "method at the limit is not reported"
+assert_not_contains "$output" "src/folded.cr:" "CountAsOne folds a multi-line array"
+assert_not_contains "$output" "src/allowed.cr:" "AllowedMethods exempts a long method"
 
 exit "$fail"
