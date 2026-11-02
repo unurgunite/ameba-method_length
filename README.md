@@ -144,6 +144,20 @@ asserts that a method at the configured limit is not reported while one over it 
 
 This is the only check that exercises dependency resolution and the public `require "ameba-method_length"` path.
 
+## Releasing
+
+A shard ships as a git tag: consumers pin `version: X.Y.Z` and `shards install` resolves the tag itself, so there is no
+binary to build or attach. Run the **Release** workflow manually with the version you want to publish:
+
+1. Bump `version` in `shard.yml` and `VERSION` in `src/ameba/method_length/version.cr` to the same value, and land that
+   change first — the workflow refuses to tag when the two disagree with each other or with the input.
+2. Merge the release branch into `master` with a merge commit.
+3. Run **Release** from `master` with that version. It re-runs the specs and the integration test, then creates the tag
+   and the GitHub release with generated notes. It fails if the release already exists.
+
+Branch protection and the "PRs to `master` only from `v*` or `system/*`" check come from
+[`FlorexLabs/shared-workflows`](https://github.com/FlorexLabs/shared-workflows), referenced rather than copied.
+
 ## License
 
 MIT
