@@ -1,0 +1,10 @@
+Globs:
+  - "**/*.cr"
+  - "!lib"
+  # Integration fixture: the long methods there are deliberate.
+  - "!integration"
+
+# The rule itself, self-hosted: it must lint this shard's own code.
+Metrics/MethodLength:
+  Enabled: true
+  MaxLines: 15

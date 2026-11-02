@@ -1,0 +1,10 @@
+version: 2.0
+shards:
+  ameba:
+    git: https://github.com/crystal-ameba/ameba.git
+    version: 1.7.0
+
+  catalyst:
+    git: https://github.com/unurgunite/catalyst.git
+    version: 0.8.1
+

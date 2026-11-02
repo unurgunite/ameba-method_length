@@ -1,0 +1,13 @@
+name: consumer
+version: 0.1.0
+
+crystal: ">= 1.19.0"
+
+dependencies:
+  ameba-method_length:
+    path: ../..
+
+development_dependencies:
+  ameba:
+    github: crystal-ameba/ameba
+    version: "1.7.0"

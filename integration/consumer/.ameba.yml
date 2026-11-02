@@ -1,0 +1,12 @@
+Globs:
+  - "src/**/*.cr"
+
+Metrics/MethodLength:
+  Enabled: true
+  MaxLines: 5
+  # A multi-line array counts as one line, so `folded` stays at 5.
+  CountAsOne:
+    - array
+  # `build` is exempt despite being long.
+  AllowedMethods:
+    - build

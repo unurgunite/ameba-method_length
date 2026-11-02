@@ -1,0 +1,105 @@
+name: CI
+
+on: [push, pull_request]
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            crystal: "1.19.0"
+          - os: ubuntu-latest
+            crystal: "1.20.0"
+          - os: ubuntu-latest
+            crystal: "1.21.0"
+          - os: ubuntu-latest
+            crystal: "1.22.0"
+          - os: ubuntu-latest
+            crystal: latest
+          - os: macos-latest
+            crystal: latest
+          - os: windows-latest
+            crystal: latest
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Crystal ${{ matrix.crystal }}
+        uses: crystal-lang/install-crystal@v1
+        with:
+          crystal: ${{ matrix.crystal }}
+
+      - name: Cache shards
+        if: runner.os != 'Windows'
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/shards
+          key: ${{ runner.os }}-shards-${{ matrix.crystal }}-${{ hashFiles('shard.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-shards-${{ matrix.crystal }}-
+
+      - name: Install dependencies
+        run: shards install
+
+      - name: Check formatting
+        run: crystal tool format --check src spec bin
+
+      # Code cleanliness gates. Both must stay green for the PR to land.
+      - name: Lint (ameba)
+        run: crystal run bin/ameba.cr --
+
+      # Catalyst ships no binary target, so its entrypoint is run from the
+      # installed shard. `--ci` exits non-zero on any finding.
+      - name: Performance analysis (catalyst)
+        run: crystal run lib/catalyst/src/catalyst.cr -- --ci src spec bin
+
+      - name: Test
+        run: crystal spec
+
+      # The rule only works if a consumer can require it next to ameba's CLI,
+      # so build the same entry point a consuming project would use.
+      - name: Build ameba with the rule
+        run: crystal build bin/ameba.cr --release -o bin/ameba
+
+      - name: Verify the rule is registered
+        if: runner.os != 'Windows'
+        run: |
+          ./bin/ameba --no-color --rules | grep -q 'Metrics/MethodLength'
+          mkdir -p tmp
+          echo 'def long_method' > tmp/long.cr
+          for n in $(seq 1 20); do echo '  a = 1' >> tmp/long.cr; done
+          echo 'end' >> tmp/long.cr
+          ./bin/ameba --no-color --only Metrics/MethodLength tmp/long.cr | grep -q 'Method is too long'
+
+  # Everything above requires the rule by relative path, so it never exercises
+  # shard.yml, dependency resolution or the public require path. This job
+  # installs the shard into a throwaway consumer project and runs the binary
+  # the way a real user would.
+  integration:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            crystal: "1.19.0"
+          - os: ubuntu-latest
+            crystal: latest
+          - os: macos-latest
+            crystal: latest
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Crystal ${{ matrix.crystal }}
+        uses: crystal-lang/install-crystal@v1
+        with:
+          crystal: ${{ matrix.crystal }}
+
+      - name: Install the shard in a consumer project and run the rule
+        run: ./scripts/integration-test.sh
