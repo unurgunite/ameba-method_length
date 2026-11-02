@@ -7,7 +7,9 @@ module Ameba::Rule::Metrics
   # Long methods are hard to read, test, and maintain; they should be
   # split into smaller, well-named submethods.
   #
-  # Lines are counted from the `def` keyword to the closing `end`, inclusive.
+  # Only body lines count, matching RuboCop's `Metrics/MethodLength`: the
+  # `def` and `end` lines are never counted, and neither are blank lines or
+  # comment-only lines.
   #
   # YAML configuration example:
   #
@@ -32,15 +34,16 @@ module Ameba::Rule::Metrics
       # Method names exempt from the rule, e.g. a long `initialize`.
       allowed_methods %w[]
 
-      # Excludes the `def` line itself from the count.
+      # Counts the `def` line too. `end` is never counted.
       exclude_limit false
 
       # Multi-line literals folded into a single counted line.
       # Accepted values: `array`, `hash`, `heredoc`.
       count_as_one %w[]
 
-      # Comment-only lines are not counted towards the limit.
-      ignore_comments false
+      # Comment lines count towards the limit. Off by default, matching
+      # RuboCop's `CountComments: false`.
+      count_comments false
     end
 
     COUNT_AS_ONE_VALUES = %w[array hash heredoc]
@@ -60,8 +63,13 @@ module Ameba::Rule::Metrics
       end_loc = node.end_location
       return unless loc && end_loc
 
-      lines = lines_in(source, node, loc.line_number, end_loc.line_number)
-      lines -= 1 if exclude_limit?
+      # `end` line is never part of the body, so drop it before counting.
+      first_line = loc.line_number
+      last_line = end_loc.line_number - 1
+      return if last_line < first_line
+
+      lines = lines_in(source, node, first_line, last_line)
+      lines += 1 if exclude_limit?
 
       return unless lines > max_lines
 
@@ -81,11 +89,28 @@ module Ameba::Rule::Metrics
     end
 
     private def lines_in(source, node : Crystal::Def, first_line, last_line) : Int32
-      lines = last_line - first_line + 1
+      # `first_line` is the `def` line itself, never counted as body.
+      body_first = first_line + 1
+      return 0 if body_first > last_line
+
+      lines = code_lines(source, body_first, last_line)
       lines -= folded_lines(node)
-      lines -= comment_lines(source, first_line, last_line)
-      # Nested literals fold twice; a method can never be shorter than one line.
-      lines.clamp(1, Int32::MAX)
+      lines.clamp(0, Int32::MAX)
+    end
+
+    # Counts body lines that carry code: no blanks, and comment-only lines only
+    # when `CountComments` is switched on. Lines arrive 1-indexed, `source.lines`
+    # is 0-indexed.
+    private def code_lines(source, first_line, last_line) : Int32
+      return 0 if first_line > last_line
+
+      source.lines[(first_line - 1)..(last_line - 1)].count do |line|
+        stripped = line.strip
+        next false if stripped.empty?
+        next true unless stripped.starts_with?('#')
+
+        count_comments?
+      end
     end
 
     # Each folded literal counts as one line instead of its physical span.
@@ -95,12 +120,6 @@ module Ameba::Rule::Metrics
       folder = LiteralFolder.new(count_as_one)
       node.accept(folder)
       folder.saved
-    end
-
-    private def comment_lines(source, first_line, last_line) : Int32
-      return 0 unless ignore_comments?
-
-      source.lines[first_line..last_line].count(&.lstrip.starts_with?('#'))
     end
 
     # Sums the lines saved by folding multi-line literals.

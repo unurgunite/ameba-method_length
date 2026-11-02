@@ -1,4 +1,4 @@
-# `CountAsOne: [array]` folds the literal into one line: 5 lines total, not 8.
+# `CountAsOne: [array]` folds the 5-line literal into one counted line.
 def folded
   items = [
     1,
