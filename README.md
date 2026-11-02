@@ -8,6 +8,16 @@ lines — the Crystal counterpart of RuboCop's `Metrics/MethodLength`.
 Ameba has no plugin API: rules are registered at compile time, so a third-party rule has to be `require`d into the same
 binary as the Ameba CLI. Requiring this shard from your own `bin/ameba.cr` is that hook.
 
+* [ameba-method_length](#ameba-method_length)
+    * [Why a shard](#why-a-shard)
+    * [Installation](#installation)
+    * [Wiring](#wiring)
+    * [Configuration](#configuration)
+    * [Line counting](#line-counting)
+    * [Running the specs](#running-the-specs)
+    * [Integration test](#integration-test)
+    * [License](#license)
+
 ## Installation
 
 Add the shard as a development dependency:
@@ -66,11 +76,11 @@ Metrics/MethodLength:
   MaxLines: 15
 ```
 
-| Property    | Default | Meaning                                              |
-|-------------|---------|------------------------------------------------------|
-| `MaxLines`  | `15`    | Maximum number of lines a method may occupy.         |
-| `Enabled`   | `true`  | Toggle the rule.                                     |
-| `Excluded`  | —       | Standard Ameba `Excluded` globs.                     |
+| Property   | Default | Meaning                                      |
+|------------|---------|----------------------------------------------|
+| `MaxLines` | `15`    | Maximum number of lines a method may occupy. |
+| `Enabled`  | `true`  | Toggle the rule.                             |
+| `Excluded` | —       | Standard Ameba `Excluded` globs.             |
 
 ## Line counting
 
@@ -94,6 +104,18 @@ crystal spec
 crystal tool format --check src spec bin
 crystal run bin/ameba.cr --
 ```
+
+## Integration test
+
+`integration/consumer/` is a throwaway project that depends on this shard through `shard.yml` and requires it the
+way a user would. `scripts/integration-test.sh` runs `shards install` there, builds the consumer's `bin/ameba.cr`, and
+asserts that a method at the configured limit is not reported while one over it is.
+
+```bash
+./scripts/integration-test.sh
+```
+
+This is the only check that exercises dependency resolution and the public `require "ameba-method_length"` path.
 
 ## License
 
