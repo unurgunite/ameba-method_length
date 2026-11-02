@@ -1,0 +1,1 @@
+# ameba-method_length
