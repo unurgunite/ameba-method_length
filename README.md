@@ -74,13 +74,27 @@ Without this wiring the rule is not in the binary and Ameba will not see it.
 Metrics/MethodLength:
   Enabled: true
   MaxLines: 15
+  CountAsOne:
+    - array
+    - hash
+    - heredoc
+  ExcludeLimit: false
+  IgnoreComments: false
+  AllowedMethods:
+    - initialize
 ```
 
-| Property   | Default | Meaning                                      |
-|------------|---------|----------------------------------------------|
-| `MaxLines` | `15`    | Maximum number of lines a method may occupy. |
-| `Enabled`  | `true`  | Toggle the rule.                             |
-| `Excluded` | —       | Standard Ameba `Excluded` globs.             |
+| Property         | Default | Meaning                                                                 |
+|------------------|---------|-------------------------------------------------------------------------|
+| `MaxLines`       | `15`    | Maximum number of lines a method may occupy.                            |
+| `CountAsOne`     | `[]`    | Multi-line literals folded into one counted line: `array`, `hash`, `heredoc`. |
+| `ExcludeLimit`   | `false` | Excludes the `def` line itself from the count.                          |
+| `IgnoreComments` | `false` | Comment-only lines are not counted.                                     |
+| `AllowedMethods` | `[]`    | Method names exempt from the rule, e.g. a long `initialize`.            |
+| `Enabled`        | `true`  | Toggle the rule.                                                        |
+| `Excluded`       | —       | Standard Ameba `Excluded` globs.                                        |
+
+An unknown `CountAsOne` value aborts config loading with an `ArgumentError` rather than silently counting wrong.
 
 ## Line counting
 
@@ -93,8 +107,16 @@ def hello    # 1
 end          # 4  → reported as [4/3 lines] when MaxLines: 3
 ```
 
-Multi-line literals and heredocs count every physical source line; there is no `CountAsOne` equivalent yet.
+Multi-line literals and heredocs count every physical source line unless listed in `CountAsOne`.
 `abstract def` and other bodyless declarations have no end location and are never reported.
+
+```crystal
+def hello        # 1
+  a = [          # 2 → 2 with CountAsOne: [array]
+    1,           # 3 → 2
+  ]              # 4 → 2
+end              # 5
+```
 
 ## Running the specs
 
