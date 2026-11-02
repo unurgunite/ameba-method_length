@@ -1,0 +1,8 @@
+Globs:
+  - "**/*.cr"
+  - "!lib"
+
+# The rule itself, self-hosted: it must lint this shard's own code.
+Metrics/MethodLength:
+  Enabled: true
+  MaxLines: 15

@@ -1,0 +1,78 @@
+name: Check versions
+
+# PR-controlled values (head_ref, base_ref, PR body) are passed through
+# `env:`, never interpolated into `run:` — `${{ github.head_ref }}` is a
+# branch name, i.e. attacker-controlled text.
+on: [push, pull_request]
+
+jobs:
+  check-versions:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@v4
+
+      # 1. The two version sources must always agree with each other.
+      - name: shard.yml and version.cr agree
+        run: |
+          shard="$(grep '^version:' shard.yml | awk '{print $2}')"
+          code="$(grep -oE 'VERSION = "[^"]+"' src/ameba/method_length/version.cr | cut -d'"' -f2)"
+          echo "shard.yml: $shard, version.cr: $code"
+          if [ "$shard" != "$code" ]; then
+            echo "version mismatch: shard.yml ($shard) != src/ameba/method_length/version.cr ($code)"
+            exit 1
+          fi
+
+      # 2. A release branch heading to master must already carry its own
+      # version (i.e. the bump PR landed first).
+      - name: release branch carries its version
+        if: github.event_name == 'pull_request' && github.base_ref == 'master'
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+        run: |
+          head="$HEAD_REF"
+          if [[ "$head" =~ ^v([0-9]+\.[0-9]+\.[0-9]+) ]]; then
+            expected="${BASH_REMATCH[1]}"
+            shard="$(grep '^version:' shard.yml | awk '{print $2}')"
+            echo "release branch $head expects $expected, shard.yml has $shard"
+            if [ "$shard" != "$expected" ]; then
+              echo "release branch $head must carry version $expected before merge to master (shard.yml has $shard). Land the version bump PR first."
+              exit 1
+            fi
+          fi
+
+      # 3. Tagged commits ([x.y.z] prefix per repo convention) must match
+      # the version of the release line they target. Merge commits and
+      # untagged messages are skipped.
+      - name: commit tags match release version
+        if: github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BASE_REF: ${{ github.base_ref }}
+          HEAD_REF: ${{ github.head_ref }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          base="$BASE_REF"
+          head="$HEAD_REF"
+          expected=""
+          if [[ "$base" =~ ^v([0-9]+\.[0-9]+\.[0-9]+) ]]; then
+            expected="${BASH_REMATCH[1]}"
+          elif [ "$base" = "master" ] && [[ "$head" =~ ^v([0-9]+\.[0-9]+\.[0-9]+) ]]; then
+            expected="${BASH_REMATCH[1]}"
+          fi
+          if [ -z "$expected" ]; then
+            echo "no release version to check against (base=$base head=$head), skipping"
+            exit 0
+          fi
+          echo "expecting commit tags [$expected] (base=$base head=$head)"
+          failed=0
+          while IFS= read -r subject; do
+            if [[ "$subject" =~ ^\[([0-9]+\.[0-9]+\.[0-9]+)\] ]]; then
+              if [ "${BASH_REMATCH[1]}" != "$expected" ]; then
+                echo "commit tag mismatch: [$subject] does not match expected [$expected]"
+                failed=1
+              fi
+            fi
+          done < <(gh pr view "$PR_NUMBER" --json commits --jq '.commits[].messageHeadline')
+          exit $failed
