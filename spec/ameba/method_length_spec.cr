@@ -305,6 +305,65 @@ module Ameba::Rule::Metrics
           end
           CRYSTAL
       end
+
+      it "folds a named tuple, which Crystal parses as a separate node from a hash" do
+        rule = MethodLength.new
+        rule.max_lines = 3
+        rule.count_as_one = %w[hash]
+
+        expect_no_issues rule, <<-CRYSTAL
+          def hello
+            a = {
+              x: 1,
+              y: 2,
+            }
+          end
+          CRYSTAL
+      end
+
+      it "counts a heredoc with interpolation once" do
+        rule = MethodLength.new
+        rule.max_lines = 0
+        rule.count_as_one = %w[heredoc]
+
+        # 9 physical lines; the 5-line heredoc folds to 1, so 5.
+        expect_issue rule, <<-CRYSTAL
+          def hello(name)
+            # ^^^^^ error: Method is too long [5/0 lines]
+            a = 1
+            b = 2
+            text = <<-TXT
+            hi \#{name}
+            middle
+            bye
+            TXT
+          end
+          CRYSTAL
+      end
+
+      it "never reports a negative line count for nested literals" do
+        rule = MethodLength.new
+        rule.max_lines = 0
+        rule.count_as_one = %w[array hash]
+
+        # The named tuple and both inner arrays overlap, so naive subtraction
+        # drives the count below zero.
+        expect_issue rule, <<-CRYSTAL
+          def hello
+            # ^^^^^ error: Method is too long [1/0 lines]
+            a = {
+              xs: [
+                1,
+                2,
+              ],
+              ys: [
+                3,
+                4,
+              ],
+            }
+          end
+          CRYSTAL
+      end
     end
 
     describe ".new" do

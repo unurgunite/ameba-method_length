@@ -84,7 +84,8 @@ module Ameba::Rule::Metrics
       lines = last_line - first_line + 1
       lines -= folded_lines(node)
       lines -= comment_lines(source, first_line, last_line)
-      lines
+      # Nested literals fold twice; a method can never be shorter than one line.
+      lines.clamp(1, Int32::MAX)
     end
 
     # Each folded literal counts as one line instead of its physical span.
@@ -115,6 +116,13 @@ module Ameba::Rule::Metrics
       end
 
       def visit(node : Crystal::HashLiteral)
+        fold(node) if @kinds.includes?("hash")
+        true
+      end
+
+      # `{a: 1}` is a `NamedTupleLiteral`, not a `HashLiteral`, but it looks like
+      # a hash to anyone writing the config, so `hash` covers both.
+      def visit(node : Crystal::NamedTupleLiteral)
         fold(node) if @kinds.includes?("hash")
         true
       end
