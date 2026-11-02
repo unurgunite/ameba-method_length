@@ -1,0 +1,119 @@
+name: Release
+
+# A shard ships as a git tag: consumers pin `version: X.Y.Z`, and `shards
+# install` resolves it from the tag itself, so there are no binaries to build
+# or attach. This workflow only guards the version bookkeeping and cuts the
+# tag + GitHub release.
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to release (must match shard.yml, e.g. 0.1.0)"
+        required: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # A tag on a feature branch would make `shards install` resolve to
+      # unreviewed code, so only the default branch may cut a release.
+      - name: Must run from master
+        env:
+          REF: ${{ github.ref }}
+        run: |
+          if [ "$REF" != "refs/heads/master" ]; then
+            echo "::error::run Release from master, not $REF"
+            exit 1
+          fi
+
+      - name: Read shard.yml version
+        id: shard
+        run: echo "version=$(grep '^version:' shard.yml | awk '{print $2}')" >> $GITHUB_OUTPUT
+
+      # The dispatch input is free text — a stray leading space or a trailing
+      # newline would otherwise fail the comparison for no good reason.
+      - name: Normalize input version
+        id: input
+        env:
+          INPUT_VERSION: ${{ github.event.inputs.version }}
+        run: echo "version=$(printf '%s' "$INPUT_VERSION" | tr -d '[:space:]')" >> $GITHUB_OUTPUT
+
+      - name: Verify versions agree
+        env:
+          SHARD: ${{ steps.shard.outputs.version }}
+          INPUT: ${{ steps.input.outputs.version }}
+        run: |
+          code="$(grep -oE 'VERSION = "[^"]+"' src/ameba/method_length/version.cr | cut -d'"' -f2)"
+          echo "shard.yml=$SHARD version.cr=$code input=$INPUT"
+          if [ "$SHARD" != "$INPUT" ]; then
+            echo "::error::shard.yml version ($SHARD) != input ($INPUT)"
+            exit 1
+          fi
+          if [ "$SHARD" != "$code" ]; then
+            echo "::error::shard.yml version ($SHARD) != src/ameba/method_length/version.cr ($code)"
+            exit 1
+          fi
+
+      - name: Set tag
+        id: tag
+        env:
+          INPUT: ${{ steps.input.outputs.version }}
+        run: echo "tag=v$INPUT" >> $GITHUB_OUTPUT
+
+      - name: Tag must not exist yet
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: v${{ steps.input.outputs.version }}
+        run: |
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "::error::release $TAG already exists"
+            exit 1
+          fi
+
+  test:
+    needs: verify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Crystal
+        uses: crystal-lang/install-crystal@v1
+        with:
+          crystal: "1.22.0"
+
+      - name: Install dependencies
+        run: shards install
+
+      - name: Check formatting
+        run: crystal tool format --check src spec bin
+
+      - name: Test
+        run: crystal spec
+
+      - name: Integration test
+        run: ./scripts/integration-test.sh
+
+  release:
+    needs: [verify, test]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.verify.outputs.tag }}
+        # `--target master` pins the auto-created tag to the merge commit even
+        # if the checkout drifted; the tag is what consumers resolve.
+        run: |
+          gh release create "$TAG" \
+            --target master \
+            --title "$TAG" \
+            --generate-notes

@@ -5,4 +5,4 @@ on:
 
 jobs:
   check:
-    uses: ./.github/workflows/check-source-branch.yml
+    uses: FlorexLabs/shared-workflows/.github/workflows/check-source-branch.yml@master
