@@ -1,6 +1,7 @@
-# Exactly at the configured limit (5 lines): must not be reported.
+# Exactly at the configured limit (5 body lines): must not be reported.
 def at_limit
   a = 1
   b = 2
-  a + b
+  c = 3
+  a + b + c
 end
