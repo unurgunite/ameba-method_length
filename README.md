@@ -79,17 +79,17 @@ Metrics/MethodLength:
     - hash
     - heredoc
   ExcludeLimit: false
-  IgnoreComments: false
+  CountComments: false
   AllowedMethods:
     - initialize
 ```
 
 | Property         | Default | Meaning                                                                 |
 |------------------|---------|-------------------------------------------------------------------------|
-| `MaxLines`       | `15`    | Maximum number of lines a method may occupy.                            |
+| `MaxLines`       | `15`    | Maximum number of body lines a method may have.                         |
 | `CountAsOne`     | `[]`    | Multi-line literals folded into one counted line: `array`, `hash`, `heredoc`. |
-| `ExcludeLimit`   | `false` | Excludes the `def` line itself from the count.                          |
-| `IgnoreComments` | `false` | Comment-only lines are not counted.                                     |
+| `ExcludeLimit`   | `false` | Also count the `def` line.                                             |
+| `CountComments`  | `false` | Count comment-only lines towards the limit.                             |
 | `AllowedMethods` | `[]`    | Method names exempt from the rule, e.g. a long `initialize`.            |
 | `Enabled`        | `true`  | Toggle the rule.                                                        |
 | `Excluded`       | —       | Standard Ameba `Excluded` globs.                                        |
@@ -98,25 +98,35 @@ An unknown `CountAsOne` value aborts config loading with an `ArgumentError` rath
 
 ## Line counting
 
-Lines are counted from the `def` line to the closing `end`, both inclusive:
+Line counting matches RuboCop's `Metrics/MethodLength`: only **body lines of code**
+count. The `def` and `end` lines are never counted, and neither are blank lines
+or comment-only lines (turn those back on with `CountComments: true`).
 
 ```crystal
-def hello    # 1
-  a = 1      # 2
-  a          # 3
-end          # 4  → reported as [4/3 lines] when MaxLines: 3
+def hello      # not counted
+  a = 1        # 1
+  b = 2        # 2
+  # a note     # not counted (CountComments: false)
+               # not counted (blank)
+  a + b        # 3
+end            # not counted
 ```
 
-Multi-line literals and heredocs count every physical source line unless listed in `CountAsOne`.
-`abstract def` and other bodyless declarations have no end location and are never reported.
+So a method holding a three-line body is `[3/3 lines]` — inside `MaxLines: 3`, not over it.
+
+Multi-line literals and heredocs span every source line unless listed in `CountAsOne`:
 
 ```crystal
-def hello        # 1
-  a = [          # 2 → 2 with CountAsOne: [array]
-    1,           # 3 → 2
-  ]              # 4 → 2
-end              # 5
+def hello
+  a = [        # 1 → 1
+    1,         # 2 → folded
+  ]            # 3 → folded
+  a            # 4 → 2
+end
 ```
+
+A heredoc is folded to the line it starts on. `abstract def` and other bodyless
+declarations are never reported.
 
 ## Development
 

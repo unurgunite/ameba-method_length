@@ -4,7 +4,7 @@ module Ameba::Rule::Metrics
   describe MethodLength do
     subject = MethodLength.new
 
-    # 15 lines: `def` + 13 body lines + `end`.
+    # 13 body lines; `def` and `end` are not counted.
     method_with_15_lines = <<-CRYSTAL
       def hello
         a = 1
@@ -38,7 +38,8 @@ module Ameba::Rule::Metrics
       end
 
       it "reports an issue for a method over the limit" do
-        source = Source.new(method_with_15_lines.sub("a = 1", "a = 1\n  a = 1"), "source.cr")
+        # 13 body lines + 3 more = 16, over the 15 limit.
+        source = Source.new(method_with_15_lines.sub("a = 1", "a = 1\n  a = 1\n  a = 1\n  a = 1"), "source.cr")
         subject.catch(source).should_not be_valid
 
         issue = source.issues.first
@@ -57,13 +58,13 @@ module Ameba::Rule::Metrics
     end
 
     describe "line counting" do
-      it "counts a multi-line body by physical source lines" do
+      it "counts a multi-line body by code lines" do
         rule = MethodLength.new
-        rule.max_lines = 2
+        rule.max_lines = 1
 
         expect_issue rule, <<-CRYSTAL
           def hello
-            # ^^^^^ error: Method is too long [4/2 lines]
+            # ^^^^^ error: Method is too long [2/1 lines]
             [1,
              2]
           end
@@ -76,7 +77,7 @@ module Ameba::Rule::Metrics
 
         expect_issue rule, <<-CRYSTAL
           def hello
-            # ^^^^^ error: Method is too long [6/3 lines]
+            # ^^^^^ error: Method is too long [4/3 lines]
             a = <<-TXT
             one
             TXT
@@ -85,20 +86,20 @@ module Ameba::Rule::Metrics
           CRYSTAL
       end
 
-      it "counts a one-line method as one line" do
+      it "counts a one-line method as no body lines" do
         rule = MethodLength.new
-        rule.max_lines = 1
+        rule.max_lines = 0
 
         expect_no_issues rule, "def hello; a; end"
       end
 
       it "counts an operator method" do
         rule = MethodLength.new
-        rule.max_lines = 2
+        rule.max_lines = 0
 
         expect_issue rule, <<-CRYSTAL
           def [](index)
-            # ^^ error: Method is too long [3/2 lines]
+            # ^^ error: Method is too long [1/0 lines]
             @items[index]
           end
           CRYSTAL
@@ -106,11 +107,11 @@ module Ameba::Rule::Metrics
 
       it "counts a setter method" do
         rule = MethodLength.new
-        rule.max_lines = 2
+        rule.max_lines = 0
 
         expect_issue rule, <<-CRYSTAL
           def value=(value)
-            # ^^^^^^ error: Method is too long [3/2 lines]
+            # ^^^^^^ error: Method is too long [1/0 lines]
             @value = value
           end
           CRYSTAL
@@ -118,11 +119,11 @@ module Ameba::Rule::Metrics
 
       it "counts a method containing a block" do
         rule = MethodLength.new
-        rule.max_lines = 4
+        rule.max_lines = 2
 
         expect_issue rule, <<-CRYSTAL
           def hello
-            # ^^^^^ error: Method is too long [5/4 lines]
+            # ^^^^^ error: Method is too long [3/2 lines]
             a.each do |x|
               x
             end
@@ -136,12 +137,27 @@ module Ameba::Rule::Metrics
 
         expect_issue rule, <<-CRYSTAL
           def hello
-            # ^^^^^ error: Method is too long [7/4 lines]
+            # ^^^^^ error: Method is too long [5/4 lines]
             a
           rescue
             b
           ensure
             c
+          end
+          CRYSTAL
+      end
+
+      it "does not count blank lines" do
+        rule = MethodLength.new
+        rule.max_lines = 3
+
+        expect_no_issues rule, <<-CRYSTAL
+          def hello
+            a = 1
+
+            b = 2
+
+            a + b
           end
           CRYSTAL
       end
@@ -156,7 +172,7 @@ module Ameba::Rule::Metrics
     end
 
     describe "ExcludeLimit" do
-      it "excludes the def line from the count" do
+      it "counts the def line too" do
         rule = MethodLength.new
         rule.max_lines = 3
         rule.exclude_limit = true
@@ -169,7 +185,7 @@ module Ameba::Rule::Metrics
           CRYSTAL
       end
 
-      it "reports the body length without the def line" do
+      it "reports the body length plus the def line" do
         rule = MethodLength.new
         rule.max_lines = 2
         rule.exclude_limit = true
@@ -206,7 +222,7 @@ module Ameba::Rule::Metrics
 
         expect_issue rule, <<-CRYSTAL
           def configure
-            # ^^^^^^^^^ error: Method is too long [5/2 lines]
+            # ^^^^^^^^^ error: Method is too long [3/2 lines]
             a = 1
             b = 2
             a + b
@@ -215,31 +231,33 @@ module Ameba::Rule::Metrics
       end
     end
 
-    describe "IgnoreComments" do
-      it "does not count comment-only lines" do
+    describe "CountComments" do
+      it "does not count comment-only lines by default" do
         rule = MethodLength.new
-        rule.max_lines = 3
-        rule.ignore_comments = true
+        rule.max_lines = 2
 
         expect_no_issues rule, <<-CRYSTAL
           def hello
             # one
             # two
             a = 1
+            b = 2
           end
           CRYSTAL
       end
 
-      it "counts comments by default" do
+      it "counts comments when CountComments is enabled" do
         rule = MethodLength.new
-        rule.max_lines = 3
+        rule.max_lines = 2
+        rule.count_comments = true
 
         expect_issue rule, <<-CRYSTAL
           def hello
-            # ^^^^^ error: Method is too long [5/3 lines]
+            # ^^^^^ error: Method is too long [4/2 lines]
             # one
             # two
             a = 1
+            b = 2
           end
           CRYSTAL
       end
@@ -292,12 +310,12 @@ module Ameba::Rule::Metrics
 
       it "still counts arrays when only hash is folded" do
         rule = MethodLength.new
-        rule.max_lines = 3
+        rule.max_lines = 2
         rule.count_as_one = %w[hash]
 
         expect_issue rule, <<-CRYSTAL
           def hello
-            # ^^^^^ error: Method is too long [6/3 lines]
+            # ^^^^^ error: Method is too long [4/2 lines]
             a = [
               1,
               2,
@@ -326,10 +344,11 @@ module Ameba::Rule::Metrics
         rule.max_lines = 0
         rule.count_as_one = %w[heredoc]
 
-        # 9 physical lines; the 5-line heredoc folds to 1, so 5.
+        # 6 body lines; the heredoc folds to the line it starts on, leaving 3.
+        # Verified against RuboCop, which reports the same [3/0].
         expect_issue rule, <<-'CRYSTAL'
           def hello(name)
-            # ^^^^^ error: Method is too long [5/0 lines]
+            # ^^^^^ error: Method is too long [3/0 lines]
             a = 1
             b = 2
             text = <<-TXT
@@ -343,14 +362,14 @@ module Ameba::Rule::Metrics
 
       it "never reports a negative line count for nested literals" do
         rule = MethodLength.new
-        rule.max_lines = 0
+        rule.max_lines = -1
         rule.count_as_one = %w[array hash]
 
         # The named tuple and both inner arrays overlap, so naive subtraction
-        # drives the count below zero.
+        # drives the count below zero; `max_lines: -1` surfaces the clamped 0.
         expect_issue rule, <<-CRYSTAL
           def hello
-            # ^^^^^ error: Method is too long [1/0 lines]
+            # ^^^^^ error: Method is too long [0/-1 lines]
             a = {
               xs: [
                 1,
